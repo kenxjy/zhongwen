@@ -3,17 +3,49 @@
  Copyright (C) 2010-2019 Christian Schiller
  https://chrome.google.com/extensions/detail/kkmlkkjojmombglmlpbpapmhcaljjkde
  */
-
-const NOTES_COLUMN = 4;
+const NOTES_COLUMN = 5;
 
 let wordList = localStorage['wordlist'];
+let showZhuyin = (localStorage['zhuyin'] === 'yes');
 
 let entries;
 if (wordList) {
     entries = JSON.parse(wordList);
-    entries.forEach(e => { e.notes = (e.notes || '<i>Edit</i>');});
+    let missingZhuyin = false;
+    entries.forEach(e => { 
+        e.notes = (e.notes || '<i>Edit</i>');
+
+        if (!e.zhuyin) {
+            missingZhuyin = true;
+            let pinyin = e.pinyin.split(/[\s·]+/);
+            let syllables = [];
+            pinyin.forEach(py => {
+                let syllable = pinyinToSyllable(py.toLowerCase());
+                syllables.push(syllable);
+            });
+
+            let zhuyin = syllablesToZhuyin(syllables);
+            e.zhuyin = zhuyin;
+        }
+    });
+
+    if (missingZhuyin) localStorage['wordlist'] = JSON.stringify(entries);
 } else {
     entries = [];
+}
+
+function pinyinToSyllable(pinyin) {
+    /* search for tone */
+    let toneNumber = 5;
+    for (let i = 1; i < 5; i++) {
+        if (pinyin.includes(utones[i])) toneNumber = i;
+    }
+
+    /* remove tone marker */
+    let toneIndex = pinyin.indexOf(utones[toneNumber]);
+    let tonelessPinyin = pinyin.substring(0, toneIndex) + pinyin.substring(toneIndex + 1);
+
+    return tonelessPinyin + toneNumber;
 }
 
 function showListIsEmptyNotice() {
@@ -39,7 +71,6 @@ function disableButtons() {
 }
 
 $(document).ready(function () {
-
     showListIsEmptyNotice();
     disableButtons();
 
@@ -51,6 +82,7 @@ $(document).ready(function () {
             { data: 'simplified' },
             { data: 'traditional' },
             { data: 'pinyin' },
+            { data: 'zhuyin', visible: showZhuyin },
             { data: 'definition' },
             { data: 'notes' },
         ]
@@ -103,6 +135,10 @@ $(document).ready(function () {
             content += '\t';
             content += entry.pinyin;
             content += '\t';
+            if (showZhuyin) {
+                content += entry.zhuyin;
+                content += '\t';
+            }
             content += entry.definition;
             content += '\t';
             content += entry.notes.replace('<i>Edit</i>', '').replace(/[\r\n]/gm, ' ');
